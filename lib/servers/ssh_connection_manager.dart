@@ -30,6 +30,14 @@ import 'web_server_models.dart';
 
 typedef HostKeyApproval = Future<bool> Function(HostKeyPrompt prompt);
 
+/// Resolves a server-issued keyboard-interactive challenge.
+///
+/// Returning null aborts the challenge, which lets the client skip to the next
+/// authentication method. The returned list must line up with
+/// [AuthChallenge.prompts].
+typedef AuthChallengeApproval =
+    Future<List<String>?> Function(AuthChallenge challenge);
+
 class SshConnectionManager {
   SshConnectionManager(
     this._terminalAdapterFactory, {
@@ -259,12 +267,14 @@ class SshConnectionManager {
     ServerProxy? proxy,
     Map<String, String>? environment,
     List<String>? initialScripts,
+    AuthChallengeApproval? approveAuth,
   }) async {
     final client = await _createClient(
       server,
       credential,
       approve,
       knownHostKeyFingerprint: knownHostKeyFingerprint,
+      approveAuth: approveAuth,
       proxy: proxy,
     );
     final brandingEnabled = _brandingEnvironmentEnabled();
@@ -4518,6 +4528,7 @@ uname -r
     HostKeyApproval approve, {
     String? knownHostKeyFingerprint,
     ServerProxy? proxy,
+    AuthChallengeApproval? approveAuth,
   }) async {
     await disconnect(server.id);
     _set(
@@ -4529,6 +4540,7 @@ uname -r
       ),
     );
     String? serverAuthMethods;
+    var answeredChallenge = false;
     try {
       final client = await _createClient(
         server,
@@ -4536,6 +4548,13 @@ uname -r
         approve,
         knownHostKeyFingerprint: knownHostKeyFingerprint,
         onAuthMethods: (methods) => serverAuthMethods = methods,
+        approveAuth: approveAuth == null
+            ? null
+            : (challenge) async {
+                final answers = await approveAuth(challenge);
+                if (answers != null) answeredChallenge = true;
+                return answers;
+              },
         proxy: proxy,
       );
       _sessions[server.id] = client;
@@ -4559,9 +4578,11 @@ uname -r
       unawaited(_refreshConnectionDetails(server, client));
     } catch (error) {
       final message = error is SSHAuthFailError
-          ? serverAuthMethods == null || serverAuthMethods!.isEmpty
-                ? 'The server rejected the supplied password.'
-                : 'The server rejected the supplied password. It advertises: $serverAuthMethods.'
+          ? _authFailureMessage(
+              credential,
+              answeredChallenge: answeredChallenge,
+              serverAuthMethods: serverAuthMethods,
+            )
           : error.toString();
       _set(
         _states[server.id]!.copyWith(
@@ -4703,6 +4724,7 @@ uname -r
     HostKeyApproval approve, {
     String? knownHostKeyFingerprint,
     void Function(String? methods)? onAuthMethods,
+    AuthChallengeApproval? approveAuth,
     ServerProxy? proxy,
   }) async {
     final identities = credential.type == CredentialType.privateKey
@@ -4738,11 +4760,14 @@ uname -r
       onPasswordRequest: credential.type == CredentialType.password
           ? () => credential.password
           : null,
-      onUserInfoRequest: credential.type == CredentialType.password
-          ? (request) => List<String>.filled(
-              request.prompts.length,
-              credential.password!,
-            )
+      // Keyboard-interactive also covers servers that never accept the
+      // `password` method, and hosts that require a second factor. Enabling it
+      // without an interactive approver would only re-send the stored
+      // password, so the handler stays null unless one is available.
+      onUserInfoRequest:
+          credential.type == CredentialType.password || approveAuth != null
+          ? (request) =>
+                _answerAuthChallenge(server, credential, request, approveAuth)
           : null,
       onVerifyHostKey: (algorithm, fingerprint) {
         final presented =
@@ -4763,11 +4788,82 @@ uname -r
         if (match != null) onAuthMethods?.call(match.group(1));
       },
       handshakeTimeout: const Duration(seconds: 15),
-      authTimeout: const Duration(seconds: 15),
+      // The auth budget covers the whole exchange, including every challenge
+      // round. Interactive prompts wait on the user, so they get a generous
+      // bound instead of the 15 seconds used for unattended connections.
+      authTimeout: approveAuth == null
+          ? const Duration(seconds: 15)
+          : const Duration(minutes: 5),
       ident: "MaidKit",
     );
     await client.authenticated;
     return client;
+  }
+
+  /// Answers one keyboard-interactive challenge.
+  ///
+  /// Prompts recognized as the account password are filled silently, which
+  /// keeps password-only keyboard-interactive hosts free of a dialog. Any
+  /// other prompt — a verification code, a token, or a bastion menu — is
+  /// handed to [approveAuth]. Without an approver the stored password is
+  /// re-sent for every prompt, matching the behavior unattended connections
+  /// had before interactive challenges were supported.
+  Future<List<String>?> _answerAuthChallenge(
+    Server server,
+    ServerCredential credential,
+    SSHUserInfoRequest request,
+    AuthChallengeApproval? approveAuth,
+  ) async {
+    // A challenge without prompts is a server-side notice; acknowledging it
+    // with an empty response is the only valid reply.
+    if (request.prompts.isEmpty) return const [];
+
+    final prompts = [for (final prompt in request.prompts) prompt.promptText];
+    final detected = detectedAuthAnswers(prompts, credential.password);
+    if (detected.every((answer) => answer != null)) {
+      return [for (final answer in detected) answer!];
+    }
+
+    if (approveAuth == null) {
+      final password = credential.password;
+      if (password == null || password.isEmpty) return null;
+      return List<String>.filled(request.prompts.length, password);
+    }
+
+    return approveAuth(
+      AuthChallenge(
+        serverName: server.name,
+        name: request.name,
+        instruction: request.instruction,
+        prompts: [
+          for (var index = 0; index < request.prompts.length; index++)
+            AuthChallengePrompt(
+              text: request.prompts[index].promptText,
+              obscure: !request.prompts[index].echo,
+              initialValue: detected[index],
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Describes an [SSHAuthFailError] with the factor that was rejected and the
+  /// methods the server still advertises, when the trace captured them.
+  String _authFailureMessage(
+    ServerCredential credential, {
+    required bool answeredChallenge,
+    required String? serverAuthMethods,
+  }) {
+    final rejected = switch ((answeredChallenge, credential.type)) {
+      (true, _) => 'The server rejected the submitted authentication response.',
+      (false, CredentialType.password) =>
+        'The server rejected the supplied password.',
+      (false, CredentialType.privateKey) =>
+        'The server rejected the supplied private key.',
+    };
+    return serverAuthMethods == null || serverAuthMethods.isEmpty
+        ? rejected
+        : '$rejected It advertises: $serverAuthMethods.';
   }
 
   Future<SSHSocket> _socketThroughJumpHost(Server server) async {

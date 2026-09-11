@@ -14,6 +14,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:maid_kit/agent/mcp_client.dart' show mcpProtocolVersion;
 import 'package:maid_kit/agent/mcp_review_mode.dart';
 import 'package:maid_kit/agent/ssh_agent_service.dart';
+import 'package:maid_kit/servers/auth_challenge_dialog.dart';
 import 'package:maid_kit/servers/server_models.dart';
 import 'package:maid_kit/servers/server_providers.dart';
 import 'package:maid_kit/shared/presentation/maidkit_alert.dart';
@@ -989,6 +990,7 @@ class LocalMcpToolExecutor implements LocalMcpToolInvoker {
       },
       knownHostKeyFingerprint: server.hostKeyFingerprint,
       proxy: proxy,
+      approveAuth: approveAuthChallenge,
     );
     if (approvedHostKey != null) {
       await repository.rememberHostKey(server.id, approvedHostKey!);

@@ -281,6 +281,7 @@ class TerminalTabsNotifier extends Notifier<TerminalTabsState> {
     List<String>? initialScripts,
     String? paneId,
     ServerProxy? proxy,
+    AuthChallengeApproval? approveAuth,
   }) async {
     if (paneId != null) focusPane(paneId);
     final handle = await _openTerminalHandle(
@@ -291,6 +292,7 @@ class TerminalTabsNotifier extends Notifier<TerminalTabsState> {
       initialDirectory: initialDirectory,
       extraInitialScripts: initialScripts,
       proxy: proxy,
+      approveAuth: approveAuth,
     );
     final tab = TerminalTab(
       id: handle.id,
@@ -645,6 +647,7 @@ class TerminalTabsNotifier extends Notifier<TerminalTabsState> {
     String? initialDirectory,
     List<String>? extraInitialScripts,
     ServerProxy? proxy,
+    AuthChallengeApproval? approveAuth,
   }) async {
     final repository = ref.read(snippetRepositoryProvider);
     final initialScripts = <String>[];
@@ -664,6 +667,7 @@ class TerminalTabsNotifier extends Notifier<TerminalTabsState> {
           proxy: proxy,
           environment: decodeEnvironmentMap(server.environment),
           initialScripts: initialScripts,
+          approveAuth: approveAuth,
         );
   }
 

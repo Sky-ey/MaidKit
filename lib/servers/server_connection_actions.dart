@@ -7,8 +7,10 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:maid_kit/data/local/app_database.dart';
 import 'package:maid_kit/shared/presentation/cloud_file_picker.dart';
 import 'package:maid_kit/shared/presentation/maidkit_alert.dart';
+import 'auth_challenge_dialog.dart';
 import 'server_models.dart';
 import 'server_providers.dart';
+import 'ssh_connection_manager.dart';
 import 'terminal_tabs_provider.dart';
 
 /// Ensures the server is connected, then opens the reusable cloud file picker.
@@ -48,9 +50,21 @@ Future<bool> connectForStatistics(
     final repository = ref.read(serverRepositoryProvider);
     final servers = await repository.all();
     if (!context.mounted) return false;
-    await _ensureJumpHostsConnected(context, ref, server, servers, <int>{});
+    await _ensureJumpHostsConnected(
+      context,
+      ref,
+      server,
+      servers,
+      <int>{},
+      approveAuth: approveAuthChallenge,
+    );
     if (!context.mounted) return false;
-    await _connectSingleServer(context, ref, server);
+    await _connectSingleServer(
+      context,
+      ref,
+      server,
+      approveAuth: approveAuthChallenge,
+    );
   } catch (error) {
     if (context.mounted) {
       showStyledSnackBar(
@@ -73,6 +87,7 @@ Future<void> _ensureJumpHostsConnected(
   List<Server> servers,
   Set<int> visiting, {
   VoidCallback? onHostKeyPrompt,
+  AuthChallengeApproval? approveAuth,
 }) async {
   if (ref.read(connectionManagerProvider).clientFor(server.id) != null) {
     return;
@@ -100,6 +115,7 @@ Future<void> _ensureJumpHostsConnected(
     servers,
     visiting,
     onHostKeyPrompt: onHostKeyPrompt,
+    approveAuth: approveAuth,
   );
   if (!context.mounted) throw StateError('The connection request was closed.');
   if (ref.read(connectionManagerProvider).clientFor(jumpHost.id) == null) {
@@ -108,6 +124,7 @@ Future<void> _ensureJumpHostsConnected(
       ref,
       jumpHost,
       onHostKeyPrompt: onHostKeyPrompt,
+      approveAuth: approveAuth,
     );
   }
   visiting.remove(server.id);
@@ -118,6 +135,7 @@ Future<void> _connectSingleServer(
   WidgetRef ref,
   Server server, {
   VoidCallback? onHostKeyPrompt,
+  AuthChallengeApproval? approveAuth,
 }) async {
   HostKeyPrompt? approvedHostKey;
   final repository = ref.read(serverRepositoryProvider);
@@ -138,6 +156,7 @@ Future<void> _connectSingleServer(
         },
         knownHostKeyFingerprint: server.hostKeyFingerprint,
         proxy: proxy,
+        approveAuth: approveAuth,
       );
   await repository.markConnected(server.id);
   if (approvedHostKey != null) {
@@ -180,6 +199,8 @@ Future<bool> openTerminalSession(
       servers,
       <int>{},
       onHostKeyPrompt: loading.dismiss,
+      approveAuth: (challenge) =>
+          approveAuthChallenge(challenge, onBeforePrompt: loading.dismiss),
     );
     if (!context.mounted) return false;
     final credential = await repository.credentialFor(server);
@@ -204,6 +225,8 @@ Future<bool> openTerminalSession(
           initialScripts: initialScripts,
           paneId: paneId,
           proxy: proxy,
+          approveAuth: (challenge) =>
+              approveAuthChallenge(challenge, onBeforePrompt: loading.dismiss),
         );
     if (approvedHostKey != null) {
       await ref

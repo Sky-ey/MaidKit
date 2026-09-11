@@ -606,3 +606,83 @@ class HostKeyPrompt {
   final String fingerprint;
   final bool replacesExisting;
 }
+
+/// One keyboard-interactive challenge issued by an SSH server while
+/// authenticating, for example a bastion that asks for the account password
+/// and then for a verification code.
+class AuthChallenge {
+  const AuthChallenge({
+    required this.serverName,
+    required this.name,
+    required this.instruction,
+    required this.prompts,
+  });
+
+  final String serverName;
+
+  /// Server-supplied challenge name, for example "Two-factor authentication".
+  final String name;
+
+  /// Server-supplied instructions shown above the prompts.
+  final String instruction;
+
+  final List<AuthChallengePrompt> prompts;
+}
+
+class AuthChallengePrompt {
+  const AuthChallengePrompt({
+    required this.text,
+    required this.obscure,
+    this.initialValue,
+  });
+
+  final String text;
+
+  /// Whether the response must be hidden while typing, matching the server's
+  /// echo flag.
+  final bool obscure;
+
+  /// Answer detected from the saved credential. The user may still correct it.
+  final String? initialValue;
+}
+
+final _passwordPromptPattern = RegExp(
+  r'pass(word|phrase)?',
+  caseSensitive: false,
+);
+
+/// Wording that asks for a second factor, a one-time code, or another secret
+/// that is not the stored account password.
+///
+/// Checked before [_passwordPromptPattern] so that prompts such as
+/// "One-time password" or "Verification code" are never answered with the
+/// saved password. Input the user would otherwise have to supply by hand only
+/// costs a dialog, while a wrong automatic answer fails the whole login.
+final _secondFactorPromptPattern = RegExp(
+  r'one[\s-]?time|otp|passcode|verification|verify|authenticator'
+  r'|two[\s-]?factor|2fa|mfa|token|\bcode\b|动态|验证码|驗證碼|令牌|一次性',
+  caseSensitive: false,
+);
+
+/// Whether [prompt] asks for the account password rather than a one-time code
+/// or a menu choice.
+bool isPasswordPrompt(String prompt) {
+  if (_secondFactorPromptPattern.hasMatch(prompt)) return false;
+  return _passwordPromptPattern.hasMatch(prompt) ||
+      prompt.contains('密码') ||
+      prompt.contains('密碼');
+}
+
+/// Answers for a keyboard-interactive challenge that can be resolved without
+/// asking the user.
+///
+/// Password prompts are filled from [password]. Every other prompt, including
+/// verification codes and bastion menus, stays null so the caller knows it
+/// must ask the user. The result always matches [prompts] in length and order.
+List<String?> detectedAuthAnswers(List<String> prompts, String? password) => [
+  for (final prompt in prompts)
+    if (password != null && password.isNotEmpty && isPasswordPrompt(prompt))
+      password
+    else
+      null,
+];

@@ -78,7 +78,7 @@ dependencies:
     git:
       url: https://src.solsynth.dev/Solsynth/MaidTerm.git
       path: packages/maidterm
-      ref: 06643c7200530256580561debe76567362aebb11
+      ref: 5e305421ac8f0d2e0b9d81c775756aa8f8a85300
   http: ^1.6.0
   shared_preferences: ^2.5.5
   tailscale: ^0.9.0

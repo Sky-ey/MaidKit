@@ -1337,6 +1337,8 @@
   "serverConnectionType": "連線型別",
   "serverCredentialLabel": "憑據",
   "serverCredentialNew": "新建憑據",
+  "serverCredentialNone": "無憑據",
+  "serverCredentialOptionalHint": "可不選，留空即儲存為無憑據的伺服器。",
   "serverDefaultPort": "22",
   "serverDefaultProxyPort": "1080",
   "serverDiscoverSystemInfo": "發現系統資訊",

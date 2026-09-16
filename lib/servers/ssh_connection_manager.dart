@@ -4765,7 +4765,9 @@ uname -r
       // without an interactive approver would only re-send the stored
       // password, so the handler stays null unless one is available.
       onUserInfoRequest:
-          credential.type == CredentialType.password || approveAuth != null
+          credential.type != CredentialType.none &&
+              (credential.type == CredentialType.password ||
+                  approveAuth != null)
           ? (request) =>
                 _answerAuthChallenge(server, credential, request, approveAuth)
           : null,
@@ -4860,6 +4862,8 @@ uname -r
         'The server rejected the supplied password.',
       (false, CredentialType.privateKey) =>
         'The server rejected the supplied private key.',
+      (false, CredentialType.none) =>
+        'This server has no saved credential. Add one in the server settings.',
     };
     return serverAuthMethods == null || serverAuthMethods.isEmpty
         ? rejected

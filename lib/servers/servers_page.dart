@@ -1795,8 +1795,8 @@ class _AddServerDialogState extends ConsumerState<ServerEditorDialog> {
   final _secret = TextEditingController();
   final _passphrase = TextEditingController();
   CredentialType _type = CredentialType.password;
-  int? _credentialId;
-  bool _useNewCredential = true;
+
+  ({int? id, bool isNew}) _credentialChoice = (id: null, isNew: true);
   bool _collectStats = true;
   bool _collectSystemInfo = true;
 
@@ -1838,8 +1838,11 @@ class _AddServerDialogState extends ConsumerState<ServerEditorDialog> {
     _host.text = initial.host;
     _port.text = initial.port.toString();
     _user.text = initial.username;
-    _credentialId = initial.credentialId;
-    _useNewCredential = initial.credentialId == null;
+    _credentialChoice = initial.credentialId != null
+        ? (id: initial.credentialId, isNew: false)
+        : initial.credential != null
+        ? (id: null, isNew: true)
+        : (id: null, isNew: false);
     final credential = initial.credential;
     if (credential != null) {
       _type = credential.type;
@@ -2111,7 +2114,7 @@ class _AddServerDialogState extends ConsumerState<ServerEditorDialog> {
       );
       return;
     }
-    final credential = !_useNewCredential
+    final credential = !_credentialChoice.isNew
         ? null
         : _type == CredentialType.password
         ? ServerCredential.password(_secret.text)
@@ -2128,7 +2131,7 @@ class _AddServerDialogState extends ConsumerState<ServerEditorDialog> {
         jumpHostServerId: _jumpHostServerId,
         username: _user.text,
         credential: credential,
-        credentialId: _useNewCredential ? null : _credentialId,
+        credentialId: _credentialChoice.isNew ? null : _credentialChoice.id,
         credentialName: _name.text,
         collectStats: _collectStats,
         collectSystemInfo: _collectSystemInfo,
@@ -2266,32 +2269,36 @@ class _AddServerDialogState extends ConsumerState<ServerEditorDialog> {
                   validator: _required,
                 ),
                 const SizedBox(height: 12),
-                if (widget.credentials.isNotEmpty) ...[
-                  DropdownButtonFormField<int?>(
-                    initialValue: _useNewCredential ? null : _credentialId,
-                    decoration: InputDecoration(
-                      labelText: 'serverCredentialLabel'.tr(),
-                    ),
-                    items: [
-                      DropdownMenuItem(
-                        value: null,
-                        child: Text('serverCredentialNew'.tr()),
-                      ),
-                      ...widget.credentials.map(
-                        (credential) => DropdownMenuItem(
-                          value: credential.id,
-                          child: Text(credential.name),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() {
-                      _credentialId = value;
-                      _useNewCredential = value == null;
-                    }),
+                DropdownButtonFormField<({int? id, bool isNew})>(
+                  initialValue: _credentialChoice,
+                  decoration: InputDecoration(
+                    labelText: 'serverCredentialLabel'.tr(),
+                    helperText: 'serverCredentialOptionalHint'.tr(),
                   ),
-                  const SizedBox(height: 12),
-                ],
-                if (_useNewCredential) ...[
+                  items: [
+                    DropdownMenuItem(
+                      value: (id: null, isNew: false),
+                      child: Text('serverCredentialNone'.tr()),
+                    ),
+                    DropdownMenuItem(
+                      value: (id: null, isNew: true),
+                      child: Text('serverCredentialNew'.tr()),
+                    ),
+                    ...widget.credentials.map(
+                      (credential) => DropdownMenuItem(
+                        value: (id: credential.id, isNew: false),
+                        child: Text(credential.name),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _credentialChoice = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                if (_credentialChoice.isNew) ...[
                   SegmentedButton<CredentialType>(
                     segments: [
                       ButtonSegment(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:auto_route/auto_route.dart';
@@ -1429,21 +1430,23 @@ class SettingsPage extends HookConsumerWidget {
     }
     if (!context.mounted) return;
 
-    final path = await FilePicker.saveFile(
-      dialogTitle: 'settingsExportData'.tr(),
-      fileName: 'maidkit-${exportFileNamePrefix(ref)}-${exportTimestamp()}.mkb',
-      type: FileType.custom,
-      allowedExtensions: const ['mkb'],
-    );
-    if (path == null || !context.mounted) return;
 
     try {
       final archive = await DatabaseBackupService(
         ref.read(databaseProvider),
         ref.read(vaultServiceProvider),
       ).exportArchive(password);
-      await File(path).writeAsString(archive);
-      if (context.mounted) _showMessage('settingsExportSuccess'.tr());
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'settingsExportData'.tr(),
+        fileName:
+            'maidkit-${exportFileNamePrefix(ref)}-${exportTimestamp()}.mkb',
+        type: FileType.custom,
+        allowedExtensions: const ['mkb'],
+        bytes: utf8.encode(archive),
+      );
+      if (path != null && context.mounted) {
+        _showMessage('settingsExportSuccess'.tr());
+      }
     } catch (error) {
       if (context.mounted) {
         _showMessage('settingsBackupError'.tr(args: [error.toString()]));
@@ -1673,13 +1676,6 @@ class SettingsPage extends HookConsumerWidget {
       if (passphrase == null || !context.mounted) return;
     }
 
-    final path = await FilePicker.saveFile(
-      dialogTitle: 'settingsConnectionsExportTitle'.tr(),
-      fileName: fileName,
-      type: FileType.custom,
-      allowedExtensions: [extension],
-    );
-    if (path == null || !context.mounted) return;
 
     try {
       final service = ConnectionExportService(
@@ -1690,8 +1686,14 @@ class SettingsPage extends HookConsumerWidget {
         _ConnectionsExportFormat.csv => await service.exportCsv(),
         _ => await service.exportJson(passphrase: passphrase),
       };
-      await File(path).writeAsString(content);
-      if (context.mounted) {
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'settingsConnectionsExportTitle'.tr(),
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: [extension],
+        bytes: utf8.encode(content),
+      );
+      if (path != null && context.mounted) {
         _showMessage('settingsConnectionsExportSuccess'.tr());
       }
     } on VaultLockedException {

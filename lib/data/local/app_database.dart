@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 
 part 'app_database.g.dart';
 
@@ -500,7 +504,48 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 17) {
         // Conversation history moved out of the vault database into JSONL
-        // files under the app's internal storage.
+        // files under the app's internal storage. Export the legacy rows in
+        // the exact format AgentConversationStore.saveConversation writes so
+        // upgrading keeps the saved chats instead of losing them to the drop.
+        final legacyRows = await customSelect(
+          'SELECT id, title, provider_id, model_id, messages, '
+          'created_at, updated_at FROM agent_conversations',
+        ).get();
+        if (legacyRows.isNotEmpty) {
+          final support = await getApplicationSupportDirectory();
+          final directory = Directory(
+            '${support.path}${Platform.pathSeparator}agent_conversations',
+          );
+          await directory.create(recursive: true);
+          for (final row in legacyRows) {
+            final id = row.read<int>('id');
+            final created =
+                DateTime.tryParse(row.read<String>('created_at'))
+                    ?.toIso8601String() ??
+                row.read<String>('created_at');
+            final updated =
+                DateTime.tryParse(row.read<String>('updated_at'))
+                    ?.toIso8601String() ??
+                row.read<String>('updated_at');
+            final decoded = jsonDecode(row.read<String>('messages'));
+            final lines = <String>[
+              jsonEncode({
+                'id': id,
+                'title': row.read<String>('title'),
+                'providerId': row.read<int?>('provider_id'),
+                'modelId': row.read<int?>('model_id'),
+                'createdAt': created,
+                'updatedAt': updated,
+              }),
+              if (decoded is List)
+                for (final message in decoded)
+                  if (message is Map) jsonEncode(message),
+            ];
+            await File(
+              '${directory.path}${Platform.pathSeparator}$id.jsonl',
+            ).writeAsString('${lines.join('\n')}\n');
+          }
+        }
         await customStatement('DROP TABLE IF EXISTS agent_conversations');
       }
       if (from < 18) {

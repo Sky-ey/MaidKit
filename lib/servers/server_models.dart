@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-enum CredentialType { password, privateKey }
+enum CredentialType { password, privateKey, none }
 
 class SavedCredentialDraft {
   const SavedCredentialDraft({required this.name, required this.credential});
@@ -20,6 +20,12 @@ class ServerCredential {
     this.keyPassphrase,
   }) : type = CredentialType.privateKey,
        password = null;
+
+  const ServerCredential.none()
+    : type = CredentialType.none,
+      password = null,
+      privateKey = null,
+      keyPassphrase = null;
 
   final CredentialType type;
   final String? password;
@@ -46,6 +52,7 @@ class ServerCredential {
         privateKey: json['privateKey'] as String,
         keyPassphrase: json['keyPassphrase'] as String?,
       ),
+      CredentialType.none => const ServerCredential.none(),
     };
   }
 }

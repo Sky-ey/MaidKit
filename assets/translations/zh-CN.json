@@ -1383,6 +1383,8 @@
   "serverConnectionType": "连接类型",
   "serverCredentialLabel": "凭据",
   "serverCredentialNew": "新建凭据",
+  "serverCredentialNone": "无凭据",
+  "serverCredentialOptionalHint": "可不选，留空即保存为无凭据的服务器。",
   "serverDefaultPort": "22",
   "serverDefaultProxyPort": "1080",
   "serverDiscoverSystemInfo": "发现系统信息",

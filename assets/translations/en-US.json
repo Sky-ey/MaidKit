@@ -1384,6 +1384,8 @@
   "serverConnectionType": "Connection type",
   "serverCredentialLabel": "Credential",
   "serverCredentialNew": "New credential",
+  "serverCredentialNone": "No credential",
+  "serverCredentialOptionalHint": "Optional — leave it unset to save the server without one.",
   "serverDefaultPort": "22",
   "serverDefaultProxyPort": "1080",
   "serverDiscoverSystemInfo": "Discover system information",

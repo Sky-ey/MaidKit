@@ -166,6 +166,7 @@ class ServerRepository {
       );
 
   Future<ServerCredential> credentialFor(Server server) async {
+    if (server.credentialId == null) return const ServerCredential.none();
     final credential = await credentialRecordFor(server);
     final value = await _vault.decrypt(
       EncryptedValue(

@@ -10,6 +10,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -209,6 +210,14 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   int? _remoteAnchorIndex;
   _FileSide? _focusedSide;
   _FileClipboard? _clipboard;
+
+  /// Folder navigation history for the mouse side buttons. The left pane is
+  /// either the local filesystem or a second server, so its history stores
+  /// whichever path type that pane currently shows.
+  final List<String> _localBackHistory = [];
+  final List<String> _localForwardHistory = [];
+  final List<String> _remoteBackHistory = [];
+  final List<String> _remoteForwardHistory = [];
   var _localCollapsed = false;
   var _remoteCollapsed = false;
   var _paneSplitRatio = 0.5;
@@ -481,6 +490,8 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
         _leftRemoteSymlinkPaths.clear();
         _selectedLocalPaths = {};
       });
+      _localBackHistory.clear();
+      _localForwardHistory.clear();
       await _refreshLocal();
       return;
     }
@@ -488,6 +499,8 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
     final connected = await connectForStatistics(context, ref, server);
     if (!connected || !mounted) return;
     _releaseLeftSftp();
+    _localBackHistory.clear();
+    _localForwardHistory.clear();
     setState(() {
       _leftServerId = server.id;
       _leftRemotePath = '.';
@@ -622,6 +635,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
       initialDirectory: _localDirectory.path,
     );
     if (path == null || !mounted) return;
+    _pushLocalHistory();
     setState(() {
       _localDirectory = Directory(path);
       _selectedLocalPaths = {};
@@ -633,6 +647,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
 
   Future<void> _openLocal(FileSystemEntity entry) async {
     if (!isLocalDirectory(entry)) return;
+    _pushLocalHistory();
     setState(() {
       _localDirectory = Directory(entry.path);
       _selectedLocalPaths = {};
@@ -644,6 +659,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
 
   Future<void> _openRemote(SftpName entry) async {
     if (!entry.attr.isDirectory) return;
+    _pushRemoteHistory();
     setState(() {
       _remotePath = _joinRemotePath(_remotePath, entry.filename);
       _selectedRemotePaths = {};
@@ -656,6 +672,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   Future<void> _navigateRemote(String path) async {
     final destination = path.trim();
     if (destination.isEmpty) return;
+    _pushRemoteHistory();
     setState(() {
       _remotePath = destination;
       _selectedRemotePaths = {};
@@ -669,6 +686,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   Future<void> _navigateLeftRemote(String path) async {
     final destination = path.trim();
     if (destination.isEmpty) return;
+    _pushLocalHistory();
     setState(() {
       _leftRemotePath = destination;
       _selectedLocalPaths = {};
@@ -682,6 +700,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   Future<void> _goUpLocal() async {
     final parent = _localDirectory.parent;
     if (parent.path == _localDirectory.path) return;
+    _pushLocalHistory();
     setState(() {
       _localDirectory = parent;
       _selectedLocalPaths = {};
@@ -701,6 +720,100 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
       _focusedSide = _FileSide.remote;
     });
     await _refreshRemote();
+  }
+
+  /// Records the current left-pane folder as a back-history entry before a
+  /// user navigation and clears the forward stack (standard browser
+  /// semantics: a fresh navigation invalidates any forward history).
+  void _pushLocalHistory() {
+    final current = _leftIsRemote ? _leftRemotePath : _localDirectory.path;
+    if (_localBackHistory.isNotEmpty && _localBackHistory.last == current) {
+      return;
+    }
+    _localBackHistory.add(current);
+    _localForwardHistory.clear();
+  }
+
+  void _pushRemoteHistory() {
+    if (_remoteBackHistory.isNotEmpty &&
+        _remoteBackHistory.last == _remotePath) {
+      return;
+    }
+    _remoteBackHistory.add(_remotePath);
+    _remoteForwardHistory.clear();
+  }
+
+  void _navigateLocalHistory(String path) {
+    setState(() {
+      _focusedSide = _FileSide.local;
+      _selectedLocalPaths = {};
+      _localAnchorIndex = null;
+      if (_leftIsRemote) {
+        _leftRemotePath = path;
+      } else {
+        _localDirectory = Directory(path);
+      }
+    });
+    if (_leftIsRemote) {
+      unawaited(_refreshLeftRemote());
+    } else {
+      unawaited(_refreshLocal());
+    }
+  }
+
+  void _navigateRemoteHistory(String path) {
+    setState(() {
+      _focusedSide = _FileSide.remote;
+      _remotePath = path;
+      _selectedRemotePaths = {};
+      _remoteAnchorIndex = null;
+    });
+    unawaited(_refreshRemote());
+  }
+
+  void _goBackInHistory(_FileSide side) {
+    _requestShortcutFocus();
+    if (side == _FileSide.local) {
+      if (_localBackHistory.isEmpty) return;
+      final target = _localBackHistory.removeLast();
+      _localForwardHistory.add(
+        _leftIsRemote ? _leftRemotePath : _localDirectory.path,
+      );
+      _navigateLocalHistory(target);
+    } else {
+      if (_remoteBackHistory.isEmpty) return;
+      final target = _remoteBackHistory.removeLast();
+      _remoteForwardHistory.add(_remotePath);
+      _navigateRemoteHistory(target);
+    }
+  }
+
+  void _goForwardInHistory(_FileSide side) {
+    _requestShortcutFocus();
+    if (side == _FileSide.local) {
+      if (_localForwardHistory.isEmpty) return;
+      final target = _localForwardHistory.removeLast();
+      _localBackHistory.add(
+        _leftIsRemote ? _leftRemotePath : _localDirectory.path,
+      );
+      _navigateLocalHistory(target);
+    } else {
+      if (_remoteForwardHistory.isEmpty) return;
+      final target = _remoteForwardHistory.removeLast();
+      _remoteBackHistory.add(_remotePath);
+      _navigateRemoteHistory(target);
+    }
+  }
+
+  /// Mouse side-button support (issue #93): back/forward buttons navigate
+  /// the pane the pointer is over.
+  void _handlePanePointerDown(PointerDownEvent event, _FileSide side) {
+    if (side == _FileSide.remote && _isLocalMachine) return;
+    if (event.buttons == kBackMouseButton) {
+      _goBackInHistory(side);
+    } else if (event.buttons == kForwardMouseButton) {
+      _goForwardInHistory(side);
+    }
   }
 
   Future<void> _copyRemotePath() =>
@@ -3406,6 +3519,16 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
     return _displayedRemoteEntries.length;
   }
 
+  /// Whether the file list of [side] renders the leading `..` row (and
+  /// therefore shifts the first entry down by one row).
+  bool _canGoUpForSide(_FileSide side) {
+    if (side == _FileSide.local) {
+      if (_leftIsRemote) return _leftRemotePath != '/';
+      return _localDirectory.parent.path != _localDirectory.path;
+    }
+    return _remotePath != '/' && !_isLocalMachine;
+  }
+
   /// Index of the selection anchor (or first selected entry) within the
   /// displayed entries of [side], or null when nothing is selected.
   int? _selectionIndex(_FileSide side) {
@@ -3501,7 +3624,8 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
         : _rightRemoteListController;
     if (!controller.hasClients) return;
     final position = controller.position;
-    final top = index * _kFileRowExtent;
+    final rowOffset = _canGoUpForSide(side) ? 1 : 0;
+    final top = (index + rowOffset) * _kFileRowExtent;
     final bottom = top + _kFileRowExtent;
     final viewport = position.viewportDimension;
     if (top < position.pixels) {
@@ -3532,6 +3656,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   }
 
   void _openLeftRemotePath(String path) {
+    _pushLocalHistory();
     setState(() {
       _leftRemotePath = path;
       _selectedLocalPaths = {};
@@ -3779,10 +3904,14 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
                 icon: const Icon(Symbols.swap_horiz, size: 18),
               ),
             ],
+            onPointerDown: (event) =>
+                _handlePanePointerDown(event, _FileSide.local),
             child: _LocalFileList(
               entries: _displayedLocalEntries,
               expandHidden: _leftSearchController.text.trim().isNotEmpty,
               scrollController: _localListController,
+              canGoUp: _localDirectory.parent.path != _localDirectory.path,
+              onGoUp: _goUpLocal,
               emptyMessage: _leftSearchController.text.trim().isEmpty
                   ? null
                   : 'fileManagerNoMatches'.tr(),
@@ -3875,11 +4004,14 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
           icon: const Icon(Symbols.create_new_folder, size: 18),
         ),
       ],
+      onPointerDown: (event) => _handlePanePointerDown(event, _FileSide.remote),
       child: _RemoteFileList(
         entries: _displayedRemoteEntries,
         expandHidden: _rightSearchController.text.trim().isNotEmpty,
         symbolicLinkPaths: _remoteSymlinkPaths,
         scrollController: _rightRemoteListController,
+        canGoUp: !_isLocalMachine && _remotePath != '/',
+        onGoUp: _goUpRemote,
         emptyMessage: _isLocalMachine
             ? 'fileManagerLocalMachineHint'.tr()
             : _rightSearchController.text.trim().isEmpty
@@ -4055,6 +4187,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
       dropHighlighted: _dropTargetSide == _FileSide.local,
       canGoUp: _leftRemotePath != '/',
       onGoUp: () async {
+        _pushLocalHistory();
         setState(() {
           _leftRemotePath = _parentRemotePath(_leftRemotePath);
           _selectedLocalPaths = {};
@@ -4118,11 +4251,22 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
           icon: const Icon(Symbols.swap_horiz, size: 18),
         ),
       ],
+      onPointerDown: (event) => _handlePanePointerDown(event, _FileSide.local),
       child: _RemoteFileList(
         entries: _displayedLeftRemoteEntries,
         expandHidden: _leftSearchController.text.trim().isNotEmpty,
         symbolicLinkPaths: _leftRemoteSymlinkPaths,
         scrollController: _leftRemoteListController,
+        canGoUp: _leftRemotePath != '/',
+        onGoUp: () async {
+          _pushLocalHistory();
+          setState(() {
+            _leftRemotePath = _parentRemotePath(_leftRemotePath);
+            _selectedLocalPaths = {};
+            _localAnchorIndex = null;
+          });
+          await _refreshLeftRemote();
+        },
         emptyMessage: _leftSearchController.text.trim().isEmpty
             ? null
             : 'fileManagerNoMatches'.tr(),
@@ -4137,6 +4281,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
         ),
         onOpen: (entry) async {
           if (!entry.attr.isDirectory) return;
+          _pushLocalHistory();
           setState(() {
             _leftRemotePath = _joinRemotePath(_leftRemotePath, entry.filename);
             _selectedLocalPaths = {};
@@ -4212,6 +4357,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   Future<void> _navigateFavorite(String path) async {
     if (_isLocalMachine) {
       final directory = Directory(path);
+      _pushLocalHistory();
       setState(() {
         _localDirectory = directory;
         _selectedLocalPaths = {};
@@ -4502,6 +4648,7 @@ class _FilePane extends StatelessWidget {
     this.onOpenTerminal,
     this.aboveList,
     this.clipboardHint,
+    this.onPointerDown,
     this.headerActions = const [],
   });
 
@@ -4529,6 +4676,7 @@ class _FilePane extends StatelessWidget {
   final Future<void> Function()? onOpenTerminal;
   final Widget? aboveList;
   final String? clipboardHint;
+  final void Function(PointerDownEvent event)? onPointerDown;
   final List<Widget> headerActions;
 
   @override
@@ -4536,150 +4684,156 @@ class _FilePane extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    return ContextMenuWidget(
-      menuProvider: (_) => backgroundMenu(),
-      child: DragTarget<_FileDragData>(
-        onWillAcceptWithDetails: (details) {
-          if (!canAcceptDrop(details.data)) return false;
-          onDragEntered();
-          return true;
-        },
-        onLeave: (_) => onDragExited(),
-        onAcceptWithDetails: (details) => onAcceptDrop(details.data),
-        builder: (context, candidate, rejected) {
-          final highlighted = dropHighlighted || candidate.isNotEmpty;
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onFocus,
-            child: ColoredBox(
-              color: highlighted
-                  ? scheme.primary.withValues(alpha: 0.08)
-                  : Colors.transparent,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 2, 2, 2),
-                    child: SizedBox(
-                      height: 32,
-                      child: Row(
-                        children: [
-                          Text(
-                            title,
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: focused || highlighted
-                                  ? scheme.primary
-                                  : null,
+    return Listener(
+      onPointerDown: onPointerDown,
+      child: ContextMenuWidget(
+        menuProvider: (_) => backgroundMenu(),
+        child: DragTarget<_FileDragData>(
+          onWillAcceptWithDetails: (details) {
+            if (!canAcceptDrop(details.data)) return false;
+            onDragEntered();
+            return true;
+          },
+          onLeave: (_) => onDragExited(),
+          onAcceptWithDetails: (details) => onAcceptDrop(details.data),
+          builder: (context, candidate, rejected) {
+            final highlighted = dropHighlighted || candidate.isNotEmpty;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onFocus,
+              child: ColoredBox(
+                color: highlighted
+                    ? scheme.primary.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 2, 2, 2),
+                      child: SizedBox(
+                        height: 32,
+                        child: Row(
+                          children: [
+                            Text(
+                              title,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: focused || highlighted
+                                    ? scheme.primary
+                                    : null,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child:
-                                pathInput ??
-                                TextButton(
-                                  onPressed: onPathTap,
-                                  style: TextButton.styleFrom(
-                                    alignment: Alignment.centerLeft,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 0,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child:
+                                  pathInput ??
+                                  TextButton(
+                                    onPressed: onPathTap,
+                                    style: TextButton.styleFrom(
+                                      alignment: Alignment.centerLeft,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 0,
+                                      ),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
                                     ),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
+                                    child: Text(
+                                      path,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: pathTextStyle,
+                                    ),
                                   ),
-                                  child: Text(
-                                    path,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: pathTextStyle,
+                            ),
+                            if (clipboardHint != null)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Text(
+                                  clipboardHint!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: scheme.primary,
                                   ),
-                                ),
-                          ),
-                          if (clipboardHint != null)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: Text(
-                                clipboardHint!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: scheme.primary,
                                 ),
                               ),
-                            ),
-                          ...headerActions,
-                          IconButton(
-                            tooltip: 'fileManagerGoUp'.tr(),
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
-                            ),
-                            onPressed: canGoUp ? onGoUp : null,
-                            icon: const Icon(Symbols.arrow_upward, size: 18),
-                          ),
-                          if (onCopyPath != null)
+                            ...headerActions,
                             IconButton(
-                              tooltip: 'Copy remote path',
+                              tooltip: 'fileManagerGoUp'.tr(),
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(
                                 minWidth: 28,
                                 minHeight: 28,
                               ),
-                              onPressed: () => onCopyPath!(),
-                              icon: const Icon(Symbols.content_copy, size: 18),
+                              onPressed: canGoUp ? onGoUp : null,
+                              icon: const Icon(Symbols.arrow_upward, size: 18),
                             ),
-                          if (onOpenTerminal != null)
+                            if (onCopyPath != null)
+                              IconButton(
+                                tooltip: 'Copy remote path',
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 28,
+                                  minHeight: 28,
+                                ),
+                                onPressed: () => onCopyPath!(),
+                                icon: const Icon(
+                                  Symbols.content_copy,
+                                  size: 18,
+                                ),
+                              ),
+                            if (onOpenTerminal != null)
+                              IconButton(
+                                tooltip: 'Open terminal here',
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 28,
+                                  minHeight: 28,
+                                ),
+                                onPressed: () => onOpenTerminal!(),
+                                icon: const Icon(Symbols.terminal, size: 18),
+                              ),
                             IconButton(
-                              tooltip: 'Open terminal here',
+                              tooltip: 'commonRefresh'.tr(),
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(
                                 minWidth: 28,
                                 minHeight: 28,
                               ),
-                              onPressed: () => onOpenTerminal!(),
-                              icon: const Icon(Symbols.terminal, size: 18),
+                              onPressed: loading ? null : onRefresh,
+                              icon: const Icon(Symbols.refresh, size: 18),
                             ),
-                          IconButton(
-                            tooltip: 'commonRefresh'.tr(),
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
-                            ),
-                            onPressed: loading ? null : onRefresh,
-                            icon: const Icon(Symbols.refresh, size: 18),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const Divider(height: 1),
-                  ?searchInput,
-                  ?aboveList,
-                  Expanded(
-                    child: loading
-                        ? const Center(child: CircularProgressIndicator())
-                        : error != null
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Text(error!),
-                            ),
-                          )
-                        : child,
-                  ),
-                ],
+                    const Divider(height: 1),
+                    ?searchInput,
+                    ?aboveList,
+                    Expanded(
+                      child: loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : error != null
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Text(error!),
+                              ),
+                            )
+                          : child,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -4697,6 +4851,8 @@ class _LocalFileList extends StatelessWidget {
     required this.onContextPrepare,
     required this.menuProvider,
     required this.expandHidden,
+    required this.canGoUp,
+    required this.onGoUp,
     this.scrollController,
     this.emptyMessage,
   });
@@ -4706,6 +4862,8 @@ class _LocalFileList extends StatelessWidget {
   final Set<String> cutPaths;
   final String? emptyMessage;
   final ScrollController? scrollController;
+  final bool canGoUp;
+  final Future<void> Function() onGoUp;
   final void Function(FileSystemEntity entry, int index) onTapEntry;
   final ValueChanged<FileSystemEntity> onOpen;
   final ValueChanged<FileSystemEntity> onEdit;
@@ -4716,8 +4874,18 @@ class _LocalFileList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final goUpRow = canGoUp
+        ? _ParentDirectoryRow(onGoUp: () => onGoUp())
+        : null;
     if (entries.isEmpty) {
-      return _EmptyPane(message: emptyMessage ?? 'This folder is empty.');
+      return Column(
+        children: [
+          ?goUpRow,
+          Expanded(
+            child: _EmptyPane(message: emptyMessage ?? 'This folder is empty.'),
+          ),
+        ],
+      );
     }
 
     final visibleIndices = <int>[];
@@ -4762,6 +4930,7 @@ class _LocalFileList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       controller: scrollController,
       children: [
+        ?goUpRow,
         for (final index in visibleIndices) buildRow(index),
         if (hiddenIndices.isNotEmpty)
           ExpansionTile(
@@ -4812,6 +4981,8 @@ class _RemoteFileList extends StatelessWidget {
     required this.onContextPrepare,
     required this.menuProvider,
     required this.expandHidden,
+    required this.canGoUp,
+    required this.onGoUp,
     this.scrollController,
     this.emptyMessage,
   });
@@ -4823,6 +4994,8 @@ class _RemoteFileList extends StatelessWidget {
   final Set<String> symbolicLinkPaths;
   final String? emptyMessage;
   final ScrollController? scrollController;
+  final bool canGoUp;
+  final Future<void> Function() onGoUp;
   final void Function(SftpName entry, int index) onTapEntry;
   final ValueChanged<SftpName> onOpen;
   final ValueChanged<SftpName> onEdit;
@@ -4833,8 +5006,18 @@ class _RemoteFileList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final goUpRow = canGoUp
+        ? _ParentDirectoryRow(onGoUp: () => onGoUp())
+        : null;
     if (entries.isEmpty) {
-      return _EmptyPane(message: emptyMessage ?? 'This folder is empty.');
+      return Column(
+        children: [
+          ?goUpRow,
+          Expanded(
+            child: _EmptyPane(message: emptyMessage ?? 'This folder is empty.'),
+          ),
+        ],
+      );
     }
 
     final visibleIndices = <int>[];
@@ -4880,6 +5063,7 @@ class _RemoteFileList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       controller: scrollController,
       children: [
+        ?goUpRow,
         for (final index in visibleIndices) buildRow(index),
         if (hiddenIndices.isNotEmpty)
           ExpansionTile(
@@ -5072,6 +5256,31 @@ class _FileRow extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ParentDirectoryRow extends StatelessWidget {
+  const _ParentDirectoryRow({required this.onGoUp});
+
+  final VoidCallback onGoUp;
+
+  @override
+  Widget build(BuildContext context) {
+    // Uses selectOnTapDown: false so a double-click fires onDoubleTap
+    // (and suppresses the single tap), navigating up exactly once instead of
+    // on each mouse-down.
+    return Tooltip(
+      message: 'fileManagerGoUp'.tr(),
+      child: _FileRow(
+        icon: Symbols.folder,
+        name: '..',
+        selected: false,
+        dimmed: false,
+        selectOnTapDown: false,
+        onTap: onGoUp,
+        onDoubleTap: onGoUp,
       ),
     );
   }

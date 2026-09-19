@@ -140,7 +140,7 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icons/icon.png"
   min_sdk_android: 21
-  #image_path_ios_dark_transparent: "assets/icons/icon-dark.png"
+  image_path_ios_dark_transparent: "assets/icons/icon-inverted.png"
   remove_alpha_ios: true
   desaturate_tinted_to_grayscale_ios: true
   background_color_ios: "#ffffff"

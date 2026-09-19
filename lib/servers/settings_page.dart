@@ -26,6 +26,7 @@ import 'package:maid_kit/agent/personality_service.dart';
 import 'package:maid_kit/routing/app_router.gr.dart';
 import 'package:maid_kit/shared/presentation/app_scaffold.dart';
 import 'package:maid_kit/shared/presentation/update_settings_section.dart';
+import 'package:maid_kit/shared/services/app_icon_service.dart';
 
 import 'database_backup_service.dart';
 import 'cloud_sync_service.dart';
@@ -203,6 +204,10 @@ class SettingsPage extends HookConsumerWidget {
                                   seedColor: appSeedColor,
                                   onEdit: () => _editSeedColor(context, ref),
                                 ),
+                                if (AppIconService.instance.isSupported) ...[
+                                  const SizedBox(height: 16),
+                                  const _AppIconTile(),
+                                ],
                                 const SizedBox(height: 16),
                                 const _LanguageSwitcher(),
                                 const SizedBox(height: 16),
@@ -1430,7 +1435,6 @@ class SettingsPage extends HookConsumerWidget {
     }
     if (!context.mounted) return;
 
-
     try {
       final archive = await DatabaseBackupService(
         ref.read(databaseProvider),
@@ -1675,7 +1679,6 @@ class SettingsPage extends HookConsumerWidget {
       passphrase = await _connectionsPasswordSheet(context);
       if (passphrase == null || !context.mounted) return;
     }
-
 
     try {
       final service = ConnectionExportService(
@@ -4856,6 +4859,151 @@ class _SeedColorTile extends StatelessWidget {
         icon: const Icon(Symbols.edit),
       ),
       onTap: onEdit,
+    );
+  }
+}
+
+class _AppIconTile extends StatelessWidget {
+  const _AppIconTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final isMacOs = !kIsWeb && Platform.isMacOS;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Symbols.app_shortcut),
+      title: const Text('settingsAppIcon').tr(),
+      subtitle: Text(
+        (isMacOs ? 'settingsAppIconHelperMac' : 'settingsAppIconHelper').tr(),
+      ),
+      trailing: const Icon(Symbols.chevron_right),
+      onTap: () {
+        showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          useRootNavigator: true,
+          builder: (context) => const _AppIconSheet(),
+        );
+      },
+    );
+  }
+}
+
+class _AppIconSheet extends HookConsumerWidget {
+  const _AppIconSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final currentIcon = useState<String?>(null);
+
+    useEffect(() {
+      AppIconService.instance.getState().then((state) {
+        currentIcon.value = state?.iconName;
+      });
+      return null;
+    }, []);
+
+    Future<void> select(String? name) async {
+      try {
+        await AppIconService.instance.setIcon(name);
+        currentIcon.value = name;
+        if (context.mounted) {
+          context.pop();
+          _showMessage('settingsAppIconApplied'.tr());
+        }
+      } catch (_) {
+        if (context.mounted) {
+          context.pop();
+          _showMessage('settingsAppIconFailed'.tr());
+        }
+      }
+    }
+
+    Widget iconTile({
+      required String? name,
+      required String asset,
+      required String label,
+    }) {
+      final selected = name == currentIcon.value;
+      return InkWell(
+        onTap: () => select(name),
+        borderRadius: BorderRadius.circular(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.outlineVariant,
+                  width: selected ? 3 : 1,
+                ),
+              ),
+              padding: const EdgeInsets.all(2),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(13),
+                child: Image.asset(
+                  asset,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stack) => Container(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Symbols.app_shortcut,
+                      size: 28,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: selected ? theme.colorScheme.primary : null,
+                fontWeight: selected ? FontWeight.w600 : null,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SheetScaffold(
+      titleText: 'settingsAppIcon'.tr(),
+      child: GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.0,
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+        children: [
+          Center(
+            child: iconTile(
+              name: null,
+              asset: AppIconService.defaultIconAsset,
+              label: 'settingsAppIconDefault'.tr(),
+            ),
+          ),
+          Center(
+            child: iconTile(
+              name: AppIconService.cuiteIconName,
+              asset: AppIconService.cuiteIconAsset,
+              label: 'settingsAppIconCuite'.tr(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -30,6 +30,8 @@
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		85FF883D3A461A462848EAC3 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7243611A85675F4B66966A4F /* Pods_Runner.framework */; };
 		A1B2C3D4E5F60708 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60709 /* GoogleService-Info.plist */; };
+		AB12CD34EF56AB12CD34EF03 /* AppIconChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB12CD34EF56AB12CD34EF04 /* AppIconChannel.swift */; };
+		AB12CD34EF56AB12CD34EF05 /* AppIcon-Cuite.icon in Resources */ = {isa = PBXBuildFile; fileRef = AB12CD34EF56AB12CD34EF06 /* AppIcon-Cuite.icon */; };
 		EBE42D0CF5CA968BEA5DC7A3 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD2B2470C99DF72809186C86 /* Pods_RunnerTests.framework */; };
 /* End PBXBuildFile section */
 
@@ -89,6 +91,8 @@
 		9F4F0CDE886DF6BC3BEE0011 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		A1B2C3D4E5F60709 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A499799ED724B2951780E6EC /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
+		AB12CD34EF56AB12CD34EF04 /* AppIconChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconChannel.swift; sourceTree = "<group>"; };
+		AB12CD34EF56AB12CD34EF06 /* AppIcon-Cuite.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "../ios/Runner/AppIcon-Cuite.icon"; sourceTree = "<group>"; };
 		AC99087DF0E9B35BD9C17540 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		DD2B2470C99DF72809186C86 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2C503501A19AE2679775C42 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
@@ -137,6 +141,7 @@
 		33CC10E42044A3C60003C045 = {
 			isa = PBXGroup;
 			children = (
+				AB12CD34EF56AB12CD34EF06 /* AppIcon-Cuite.icon */,
 				33FAB671232836740065AC1E /* Runner */,
 				33CEB47122A05771004F2AC0 /* Flutter */,
 				331C80D6294CF71000263BE5 /* RunnerTests */,
@@ -183,6 +188,7 @@
 			isa = PBXGroup;
 			children = (
 				33CC10F02044A3C60003C045 /* AppDelegate.swift */,
+				AB12CD34EF56AB12CD34EF04 /* AppIconChannel.swift */,
 				33CC11122044BFA00003C045 /* MainFlutterWindow.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
@@ -329,6 +335,7 @@
 			files = (
 				33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */,
 				33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */,
+				AB12CD34EF56AB12CD34EF05 /* AppIcon-Cuite.icon in Resources */,
 				A1B2C3D4E5F60708 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -452,6 +459,7 @@
 			files = (
 				33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
+				AB12CD34EF56AB12CD34EF03 /* AppIconChannel.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

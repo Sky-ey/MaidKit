@@ -9,6 +9,11 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    if let appDelegate = NSApp.delegate as? AppDelegate {
+      appDelegate.setupAppIconChannel(
+        binaryMessenger: flutterViewController.engine.binaryMessenger
+      )
+    }
 
     super.awakeFromNib()
   }

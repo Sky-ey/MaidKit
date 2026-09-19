@@ -102,9 +102,7 @@ class _AgentPageState extends ConsumerState<AgentPage> {
     // user closes every tab.
     final id = 'agent-tab-${DateTime.now().microsecondsSinceEpoch}';
     _tabs.add(_AgentTabHandle(id, 'agentNewConversation'.tr()));
-    _viewKeys[id] = GlobalKey<_AgentChatTabState>(
-      debugLabel: 'agent-tab-$id',
-    );
+    _viewKeys[id] = GlobalKey<_AgentChatTabState>(debugLabel: 'agent-tab-$id');
     _activeTabId = id;
   }
 
@@ -1015,7 +1013,7 @@ class _AgentChatTabState extends ConsumerState<_AgentChatView> {
             .read(mcpClientManagerProvider)
             .clientFor(server);
         final result = await clientForServer.callTool(
-          AgentMcpToolTarget.bareName(proposal.toolCall.function.name ?? ''),
+          AgentMcpToolTarget.bareName(proposal.toolCall.function?.name ?? ''),
           Map<String, dynamic>.from(proposal.arguments)..remove('safe_to_run'),
           cancelToken: cancelToken,
         );

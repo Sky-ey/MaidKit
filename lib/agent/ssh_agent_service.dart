@@ -104,12 +104,12 @@ class AgentProposal {
 
   String _mcpDetail() {
     final map = Map<String, dynamic>.from(arguments)..remove('safe_to_run');
-    return '${toolCall.function.name}\n${jsonEncode(map)}';
+    return '${toolCall.function?.name}\n${jsonEncode(map)}';
   }
 
   /// The MCP server id embedded in the qualified tool name
   /// (`mcp_<serverId>__<toolName>`).
-  int? get mcpServerId => _mcpServerIdFromName(toolCall.function.name ?? '');
+  int? get mcpServerId => _mcpServerIdFromName(toolCall.function?.name ?? '');
 
   static int? _mcpServerIdFromName(String name) {
     if (!name.startsWith('mcp_')) return null;
@@ -149,8 +149,8 @@ class _ToolCallAccumulator {
   void add(OpenAIResponseToolCall call) {
     id ??= call.id;
     type ??= call.type;
-    name ??= call.function.name;
-    final fragment = call.function.arguments;
+    name ??= call.function?.name;
+    final fragment = call.function?.arguments;
     if (fragment != null) arguments.write(fragment);
   }
 
@@ -407,7 +407,11 @@ class SshAgentService {
       );
     }
     final call = calls.first;
-    final kind = switch (call.function.name) {
+    final function = call.function;
+    if (function == null) {
+      throw StateError('Agent tool call is missing its function payload');
+    }
+    final kind = switch (function.name) {
       'run_command' => AgentActionKind.command,
       'read_file' => AgentActionKind.readFile,
       'write_file' => AgentActionKind.writeFile,
@@ -417,7 +421,7 @@ class SshAgentService {
       'get_skill' => AgentActionKind.getSkill,
       final String name when name.startsWith('mcp_') =>
         AgentActionKind.mcpToolCall,
-      _ => throw StateError('Unsupported agent tool: ${call.function.name}'),
+      _ => throw StateError('Unsupported agent tool: ${function.name}'),
     };
     return AgentTurn(
       text: text,
@@ -426,7 +430,7 @@ class SshAgentService {
       proposal: AgentProposal(
         kind: kind,
         arguments: Map<String, dynamic>.from(
-          jsonDecode(call.function.arguments) as Map,
+          jsonDecode(function.arguments ?? '{}') as Map,
         ),
         toolCall: call,
         assistantMessage: message,

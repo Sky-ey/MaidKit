@@ -166,6 +166,8 @@ jobs:
           go-version: "1.26"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android build dependencies
         run: |
           yes | sdkmanager --licenses

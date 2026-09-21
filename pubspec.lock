@@ -586,8 +586,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/flutter_app_update"
-      ref: "40e890f92ea8e0f0b9812142db4c8c903c868afd"
-      resolved-ref: "40e890f92ea8e0f0b9812142db4c8c903c868afd"
+      ref: ab66b772e6fe4955626a303e0449495b07f1e7e5
+      resolved-ref: ab66b772e6fe4955626a303e0449495b07f1e7e5
       url: "https://src.solsynth.dev/SoSYS/Solian.git"
     source: git
     version: "3.2.4"
@@ -922,8 +922,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/island_ui_foundation"
-      ref: "40e890f92ea8e0f0b9812142db4c8c903c868afd"
-      resolved-ref: "40e890f92ea8e0f0b9812142db4c8c903c868afd"
+      ref: ab66b772e6fe4955626a303e0449495b07f1e7e5
+      resolved-ref: ab66b772e6fe4955626a303e0449495b07f1e7e5
       url: "https://src.solsynth.dev/SoSYS/Solian.git"
     source: git
     version: "1.0.0"
@@ -1562,8 +1562,8 @@ packages:
     dependency: transitive
     description:
       path: "packages/solar_network_foundation"
-      ref: "40e890f92ea8e0f0b9812142db4c8c903c868afd"
-      resolved-ref: "40e890f92ea8e0f0b9812142db4c8c903c868afd"
+      ref: ab66b772e6fe4955626a303e0449495b07f1e7e5
+      resolved-ref: ab66b772e6fe4955626a303e0449495b07f1e7e5
       url: "https://src.solsynth.dev/SoSYS/Solian.git"
     source: git
     version: "0.1.0"
@@ -1571,8 +1571,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/solsynth_express"
-      ref: "40e890f92ea8e0f0b9812142db4c8c903c868afd"
-      resolved-ref: "40e890f92ea8e0f0b9812142db4c8c903c868afd"
+      ref: ab66b772e6fe4955626a303e0449495b07f1e7e5
+      resolved-ref: ab66b772e6fe4955626a303e0449495b07f1e7e5
       url: "https://src.solsynth.dev/SoSYS/Solian.git"
     source: git
     version: "0.1.0"

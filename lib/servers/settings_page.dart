@@ -33,7 +33,6 @@ import 'cloud_sync_service.dart';
 import 'connection_export_service.dart';
 import 'connection_import_service.dart';
 import 'connection_import_sheet.dart';
-import 'local_connection_manager.dart';
 import 'maidcafe_push.dart';
 import 'maidcafe_metoer.dart';
 import 'maidcafe_service.dart';
@@ -115,7 +114,6 @@ class SettingsPage extends HookConsumerWidget {
     final terminalDarkTheme = ref.watch(terminalDarkThemeProvider);
     final connectOnStartup = ref.watch(connectOnStartupProvider);
     final hideServerAddresses = ref.watch(hideServerAddressesProvider);
-    final localMachineEnabled = ref.watch(localMachineEnabledProvider);
     final transferConflictMode = ref.watch(transferConflictModeProvider);
     final refreshInterval = ref.watch(serverMetricsRefreshIntervalProvider);
     final focusedRefreshInterval = ref.watch(
@@ -518,19 +516,6 @@ class SettingsPage extends HookConsumerWidget {
                                 .read(hideServerAddressesProvider.notifier)
                                 .setEnabled(value),
                           ),
-                          if (localMachineSupported) ...[
-                            SwitchListTile(
-                              contentPadding: _sectionTilePadding,
-                              title: const Text('settingsLocalMachine').tr(),
-                              subtitle: const Text(
-                                'settingsLocalMachineHint',
-                              ).tr(),
-                              value: localMachineEnabled,
-                              onChanged: (value) => ref
-                                  .read(localMachineEnabledProvider.notifier)
-                                  .setEnabled(value),
-                            ),
-                          ],
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                             child: Column(

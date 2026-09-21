@@ -84,8 +84,7 @@ SshSessionInfo? _sessionForTab(
       .firstOrNull;
 }
 
-/// Opens the file management tab for [server]'s side. The local machine has
-/// no SFTP side and opens straight into the local browser.
+/// Opens the file management tab for [server]'s side.
 Future<void> _openFiles(
   BuildContext context,
   WidgetRef ref,
@@ -94,12 +93,6 @@ Future<void> _openFiles(
   String? initialPath,
 }) async {
   if (server.connectionType == ServerConnectionType.serial.name) return;
-  if (server.connectionType == ServerConnectionType.local.name) {
-    ref
-        .read(terminalTabsProvider.notifier)
-        .openFileManagement(server, initialPath: initialPath, paneId: paneId);
-    return;
-  }
   final manager = ref.read(connectionManagerProvider);
   if (manager.clientFor(server.id) == null &&
       !await connectForStatistics(context, ref, server)) {

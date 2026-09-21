@@ -20,7 +20,6 @@ import 'servers/terminal_adapter_preferences.dart';
 import 'servers/startup_connection_preferences.dart';
 import 'servers/transfer_conflict_preferences.dart';
 import 'servers/privacy_preferences.dart';
-import 'servers/local_machine_preferences.dart';
 import 'firebase_options.dart';
 import 'servers/maidcafe_preferences.dart';
 import 'servers/maidcafe_push.dart';
@@ -61,7 +60,6 @@ Future<void> main(List<String> args) async {
     MetricsRefreshPreferences.load(),
     AppThemePreferences.load(),
     PrivacyPreferences.load(),
-    LocalMachinePreferences.load(),
     MaidCafePreferences.load(),
     TransferConflictPreferences.load(),
   ]);
@@ -72,10 +70,9 @@ Future<void> main(List<String> args) async {
   final metricsRefreshPreferences = preferences[2] as MetricsRefreshPreferences;
   final appThemePreferences = preferences[3] as AppThemePreferences;
   final privacyPreferences = preferences[4] as PrivacyPreferences;
-  final localMachinePreferences = preferences[5] as LocalMachinePreferences;
-  final maidCafePreferences = preferences[6] as MaidCafePreferences;
+  final maidCafePreferences = preferences[5] as MaidCafePreferences;
   final transferConflictPreferences =
-      preferences[7] as TransferConflictPreferences;
+      preferences[6] as TransferConflictPreferences;
 
   await migrateLegacyVault(defaultName: 'Primary Vault');
 
@@ -143,7 +140,6 @@ Future<void> main(List<String> args) async {
         ),
         appThemeSettingsProvider.overrideWithValue(appThemePreferences),
         privacySettingsProvider.overrideWithValue(privacyPreferences),
-        localMachineSettingsProvider.overrideWithValue(localMachinePreferences),
         maidCafeSettingsProvider.overrideWithValue(maidCafePreferences),
         transferConflictSettingsProvider.overrideWithValue(
           transferConflictPreferences,

@@ -166,7 +166,7 @@ List<String> decodeStringList(String? value) {
   ];
 }
 
-enum ServerConnectionType { ssh, serial, local }
+enum ServerConnectionType { ssh, serial }
 
 /// Whether serial-port servers are offered in the UI and can be connected.
 ///

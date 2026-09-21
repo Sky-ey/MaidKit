@@ -282,7 +282,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
     final server = _serverRecord();
     final configuredPath =
         widget.tab.initialPath ?? server?.fileManagementInitialPath;
-    _localDirectory = _isLocalMachine && configuredPath != null
+    _localDirectory = configuredPath != null
         ? Directory(configuredPath)
         : Directory.current;
     _remotePath = configuredPath ?? '.';
@@ -303,17 +303,6 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   }
 
   bool get _leftIsRemote => _leftServerId != null;
-
-  /// Whether this tab manages the machine MaidKit runs on. The local machine
-  /// has no SFTP side, so the right pane is informational and the local pane
-  /// is the only filesystem browser.
-  bool get _isLocalMachine {
-    final servers = ref.read(serversProvider).asData?.value ?? const [];
-    final server = servers
-        .where((item) => item.id == widget.tab.serverId)
-        .firstOrNull;
-    return server?.connectionType == ServerConnectionType.local.name;
-  }
 
   /// How transfers resolve destination entries that already exist. Read at
   /// transfer time so setting changes apply to queued work immediately.
@@ -568,16 +557,6 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   }
 
   Future<void> _refreshRemote() async {
-    // The local machine has no SFTP side; keep the right pane idle instead
-    // of surfacing a connection error.
-    if (_isLocalMachine) {
-      setState(() {
-        _loadingRemote = false;
-        _remoteError = null;
-        _remoteSymlinkPaths.clear();
-      });
-      return;
-    }
     setState(() {
       _loadingRemote = true;
       _remoteError = null;
@@ -808,7 +787,6 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   /// Mouse side-button support (issue #93): back/forward buttons navigate
   /// the pane the pointer is over.
   void _handlePanePointerDown(PointerDownEvent event, _FileSide side) {
-    if (side == _FileSide.remote && _isLocalMachine) return;
     if (event.buttons == kBackMouseButton) {
       _goBackInHistory(side);
     } else if (event.buttons == kForwardMouseButton) {
@@ -831,15 +809,6 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
         title: 'Could not open terminal',
         icon: Symbols.error,
         accentColor: Theme.of(context).colorScheme.error,
-      );
-      return;
-    }
-    if (server.connectionType == ServerConnectionType.local.name) {
-      await openLocalTerminalSession(
-        context,
-        ref,
-        server,
-        initialDirectory: _localDirectory.path,
       );
       return;
     }
@@ -3526,7 +3495,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
       if (_leftIsRemote) return _leftRemotePath != '/';
       return _localDirectory.parent.path != _localDirectory.path;
     }
-    return _remotePath != '/' && !_isLocalMachine;
+    return _remotePath != '/';
   }
 
   /// Index of the selection anchor (or first selected entry) within the
@@ -3937,9 +3906,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
             ),
           );
     final remotePane = _FilePane(
-      title: _isLocalMachine
-          ? 'fileManagerLocalMachine'.tr()
-          : 'fileManagerRemote'.tr(),
+      title: 'fileManagerRemote'.tr(),
       path: _remotePath,
       pathTextStyle: pathTextStyle,
       searchInput: _rightSearchOpen ? _searchInput(_FileSide.remote) : null,
@@ -3975,7 +3942,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
       loading: _loadingRemote,
       error: _remoteError,
       clipboardHint: _clipboardHint(_FileSide.remote),
-      aboveList: _isLocalMachine || _favoritePaths.isEmpty
+      aboveList: _favoritePaths.isEmpty
           ? null
           : Column(
               mainAxisSize: MainAxisSize.min,
@@ -3992,7 +3959,7 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
       onAcceptDrop: (data) => _handleInternalDrop(data, _FileSide.remote),
       headerActions: [
         _searchToggle(_FileSide.remote),
-        if (!_isLocalMachine) _favoriteToggleButton(),
+        _favoriteToggleButton(),
         IconButton(
           tooltip: 'fileManagerCreateFolder'.tr(),
           visualDensity: VisualDensity.compact,
@@ -4010,11 +3977,9 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
         expandHidden: _rightSearchController.text.trim().isNotEmpty,
         symbolicLinkPaths: _remoteSymlinkPaths,
         scrollController: _rightRemoteListController,
-        canGoUp: !_isLocalMachine && _remotePath != '/',
+        canGoUp: _remotePath != '/',
         onGoUp: _goUpRemote,
-        emptyMessage: _isLocalMachine
-            ? 'fileManagerLocalMachineHint'.tr()
-            : _rightSearchController.text.trim().isEmpty
+        emptyMessage: _rightSearchController.text.trim().isEmpty
             ? null
             : 'fileManagerNoMatches'.tr(),
         currentPath: _remotePath,
@@ -4355,18 +4320,6 @@ class _FileManagementTabViewState extends ConsumerState<FileManagementTabView> {
   }
 
   Future<void> _navigateFavorite(String path) async {
-    if (_isLocalMachine) {
-      final directory = Directory(path);
-      _pushLocalHistory();
-      setState(() {
-        _localDirectory = directory;
-        _selectedLocalPaths = {};
-        _localAnchorIndex = null;
-        _focusedSide = _FileSide.local;
-      });
-      await _refreshLocal();
-      return;
-    }
     await _navigateRemote(path);
   }
 

@@ -33,8 +33,6 @@ import 'maidcafe_push.dart';
 import 'maidcafe_service.dart';
 import 'maidcafe_metoer.dart';
 import 'maidcafe_session_registry.dart';
-import 'local_connection_manager.dart';
-import 'local_machine_preferences.dart';
 import 'metrics_refresh_preferences.dart';
 import 'port_forwarding_models.dart';
 import 'privacy_preferences.dart';
@@ -953,30 +951,6 @@ class HideServerAddressesNotifier extends Notifier<bool> {
   }
 }
 
-final localMachineSettingsProvider = Provider<LocalMachineSettings>(
-  (ref) => InMemoryLocalMachineSettings(),
-);
-
-final localMachineEnabledProvider =
-    NotifierProvider<LocalMachineEnabledNotifier, bool>(
-      LocalMachineEnabledNotifier.new,
-    );
-
-class LocalMachineEnabledNotifier extends Notifier<bool> {
-  @override
-  bool build() => ref.read(localMachineSettingsProvider).localMachineEnabled;
-
-  Future<void> setEnabled(bool value) async {
-    await ref.read(localMachineSettingsProvider).saveLocalMachineEnabled(value);
-    state = value;
-    // Collect stats as soon as the toggle turns on rather than waiting for
-    // the next scheduled tick (up to the background refresh interval).
-    if (value && localMachineSupported) {
-      unawaited(ref.read(localConnectionManagerProvider).refreshNow());
-    }
-  }
-}
-
 final transferConflictSettingsProvider = Provider<TransferConflictSettings>(
   (ref) => InMemoryTransferConflictSettings(),
 );
@@ -1382,48 +1356,10 @@ final serialConnectionManagerProvider = Provider<SerialConnectionManager>((
   return manager;
 });
 
-/// The virtual "this computer" server shown on the dashboard when local
-/// machine management is enabled. It is deliberately not persisted: it has no
-/// credentials, must not leak into cloud sync, and can never collide with a
-/// stored row (its id is 0).
-final localMachineServerProvider = Provider<Server>((ref) {
-  String hostname() {
-    try {
-      return Platform.localHostname;
-    } catch (_) {
-      return 'localhost';
-    }
-  }
-
-  return Server(
-    id: localMachineServerId,
-    name: hostname(),
-    host: '127.0.0.1',
-    port: 22,
-    username: Platform.environment['USER'] ?? '',
-    collectStats: true,
-    collectSystemInfo: true,
-    connectionType: ServerConnectionType.local.name,
-  );
-});
-
-final localConnectionManagerProvider = Provider<LocalConnectionManager>((ref) {
-  final manager = LocalConnectionManager(
-    () => ref.read(terminalSessionAdapterFactoryProvider),
-    isEnabled: () =>
-        localMachineSupported && ref.read(localMachineEnabledProvider),
-    interval: () => ref.read(serverMetricsRefreshIntervalProvider),
-    serverName: () => ref.read(localMachineServerProvider).name,
-  );
-  ref.onDispose(manager.dispose);
-  return manager;
-});
-
 final sessionsProvider = StreamProvider<List<SshSessionInfo>>((ref) {
   final manager = ref.watch(connectionManagerProvider);
   final serial = ref.watch(serialConnectionManagerProvider);
-  final local = ref.watch(localConnectionManagerProvider);
-  return _watchSessions(manager, serial, local);
+  return _watchSessions(manager, serial);
 });
 
 final portForwardsProvider = StreamProvider<List<ActivePortForward>>((ref) {
@@ -1490,18 +1426,13 @@ Future<void> _startAutoPortForwards(Ref ref, Server server) async {
 Stream<List<SshSessionInfo>> _watchSessions(
   SshConnectionManager manager,
   SerialConnectionManager serial,
-  LocalConnectionManager local,
 ) async* {
-  yield [...manager.current, ...serial.current, ...local.current];
-  yield* StreamGroup.merge([manager.sessions, serial.sessions, local.sessions]);
+  yield [...manager.current, ...serial.current];
+  yield* StreamGroup.merge([manager.sessions, serial.sessions]);
 }
 
 final serversProvider = StreamProvider<List<Server>>((ref) {
-  final stored = ref.watch(serverRepositoryProvider).watchAll();
-  if (!localMachineSupported) return stored;
-  if (!ref.watch(localMachineEnabledProvider)) return stored;
-  final local = ref.watch(localMachineServerProvider);
-  return stored.map((servers) => [local, ...servers]);
+  return ref.watch(serverRepositoryProvider).watchAll();
 });
 
 /// Per-server enable/disable toggles for the Runtimes tab. Absent rows

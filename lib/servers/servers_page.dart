@@ -70,8 +70,6 @@ class ServerDashboardTab extends ConsumerWidget {
   ) async {
     if (server.connectionType == ServerConnectionType.serial.name) {
       await openSerialTerminalSession(context, ref, server);
-    } else if (server.connectionType == ServerConnectionType.local.name) {
-      await openLocalTerminalSession(context, ref, server);
     } else {
       await connectForStatistics(context, ref, server);
     }
@@ -180,9 +178,7 @@ class ServerDashboardTab extends ConsumerWidget {
       onOpenTerminal: (server) => openTerminalFor(context, ref, server),
       onOpenFiles: (server) => _openFiles(context, ref, server),
       onRefresh: (server) =>
-          server.connectionType == ServerConnectionType.local.name
-          ? ref.read(localConnectionManagerProvider).refreshNow()
-          : ref.read(connectionManagerProvider).refreshServerInfo(server),
+          ref.read(connectionManagerProvider).refreshServerInfo(server),
     );
   }
 
@@ -192,10 +188,6 @@ class ServerDashboardTab extends ConsumerWidget {
     Server server,
   ) async {
     if (server.connectionType == ServerConnectionType.serial.name) return;
-    if (server.connectionType == ServerConnectionType.local.name) {
-      ref.read(terminalTabsProvider.notifier).openFileManagement(server);
-      return;
-    }
     final manager = ref.read(connectionManagerProvider);
     if (manager.clientFor(server.id) == null &&
         !await connectForStatistics(context, ref, server)) {
@@ -436,11 +428,6 @@ class _ServerGridState extends ConsumerState<_ServerGrid> {
           tagsText.contains(query);
     }).toList();
     final disconnectedServers = visibleServers.where((server) {
-      // The local machine is always reachable and never participates in
-      // reconnect-all.
-      if (server.connectionType == ServerConnectionType.local.name) {
-        return false;
-      }
       final status = sessionsByServerId[server.id]?.status;
       return status != SessionStatus.connected &&
           status != SessionStatus.connecting;
@@ -594,13 +581,6 @@ class _ServerGridState extends ConsumerState<_ServerGrid> {
                             onOpenFiles: () => widget.onOpenFiles(server),
                             onRefresh: () => widget.onRefresh(server),
                           );
-                          // The local machine is a virtual server: it is not in
-                          // the database, so it cannot be reordered, edited, or
-                          // deleted, and gets no context menu.
-                          final isLocal =
-                              server.connectionType ==
-                              ServerConnectionType.local.name;
-                          if (isLocal) return card;
                           if (_isArranging) {
                             return _ReorderableServerTile(
                               server: server,
@@ -946,10 +926,7 @@ class _ServerCard extends ConsumerWidget {
     final textTheme = theme.textTheme;
     final hideAddresses = ref.watch(hideServerAddressesProvider);
     final isSerial = server.connectionType == ServerConnectionType.serial.name;
-    final isLocal = server.connectionType == ServerConnectionType.local.name;
-    // The local machine is always reachable; its session may lag one refresh
-    // behind, so never surface it as disconnected.
-    final connected = isLocal || session?.status == SessionStatus.connected;
+    final connected = session?.status == SessionStatus.connected;
     final connecting = session?.status == SessionStatus.connecting;
     final failed = session?.status == SessionStatus.failed;
 
@@ -957,9 +934,7 @@ class _ServerCard extends ConsumerWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        // The local machine has no SSH details page; its actions live on the
-        // card itself (terminal, files, refresh).
-        onTap: isLocal ? null : onOpenDetail,
+        onTap: onOpenDetail,
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: compact ? 8 : 12),
           child: Column(
@@ -973,7 +948,7 @@ class _ServerCard extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(
-                      isLocal ? Symbols.computer : Symbols.dns,
+                      Symbols.dns,
                       fill: connected ? 1 : 0,
                       size: compact ? 20 : 22,
                       color: connected
@@ -1020,10 +995,6 @@ class _ServerCard extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                              if (isLocal) ...[
-                                const SizedBox(width: 6),
-                                _BadgeChip(label: 'localMachineBadge'.tr()),
-                              ],
                             ],
                           ),
                           _ServerBadges(server: server),
